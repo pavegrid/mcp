@@ -16,7 +16,11 @@ function run(command, args, options = {}) {
 }
 let created = false;
 try {
-  const packed = run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', '--json', '--pack-destination', directory], { cwd: repo, shell: process.platform === 'win32' });
+  const npmCli = process.env.npm_execpath;
+  assert.ok(npmCli, 'Run package checks with npm run test:pack');
+  // npm supplies its CLI path to scripts. Calling it through Node avoids the
+  // Windows .cmd shim and preserves paths with spaces as single arguments.
+  const packed = run(process.execPath, [npmCli, 'pack', '--json', '--pack-destination', directory], { cwd: repo });
   assert.equal(packed.status, 0, 'npm pack failed');
   const parsed = JSON.parse(packed.stdout);
   const metadata = Array.isArray(parsed) ? parsed[0] : Object.values(parsed)[0];
