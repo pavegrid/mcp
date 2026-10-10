@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { chmod, lstat, mkdir, open, rename, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix, win32 } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { ClientError, validateToken } from './errors.js';
 import { apiOrigin } from './api.js';
@@ -80,9 +80,9 @@ export function nativeStore(options: { platform?: string; service?: string; orig
   };
 }
 export function configDirectory(platform = process.platform, env = process.env, home = homedir()): string {
-  if (platform === 'win32') return join(env.APPDATA || join(home, 'AppData', 'Roaming'), 'PaveGrid', 'mcp');
-  if (platform === 'darwin') return join(home, 'Library', 'Application Support', 'PaveGrid', 'mcp');
-  return join(env.XDG_CONFIG_HOME || join(home, '.config'), 'pavegrid', 'mcp');
+  if (platform === 'win32') return win32.join(env.APPDATA || win32.join(home, 'AppData', 'Roaming'), 'PaveGrid', 'mcp');
+  if (platform === 'darwin') return posix.join(home, 'Library', 'Application Support', 'PaveGrid', 'mcp');
+  return posix.join(env.XDG_CONFIG_HOME || posix.join(home, '.config'), 'pavegrid', 'mcp');
 }
 export function tokenFile(origin: string, directory = configDirectory()): string {
   const namespace = originNamespace(origin);

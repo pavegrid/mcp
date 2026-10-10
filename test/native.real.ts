@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { nativeStore, runCommand } from '../src/store.js';
+import { nativeStore, runCommand, type Runner } from '../src/store.js';
 import { main } from '../src/main.js';
 import { fixtureFetch } from './fixtures.js';
 import { ClientError } from '../src/errors.js';
@@ -16,6 +16,14 @@ test('real OS store: missing, login, read, logout, relogin; isolated target', as
   const password = randomUUID();
   const token = `pgai_${randomUUID().replaceAll('-', '')}`;
   const other = `pgai_${randomUUID().replaceAll('-', '')}`;
+  const run: Runner = async (executable, args, input) => {
+    const result = await runCommand(executable, args, input);
+    if (process.platform === 'win32') {
+      const reply = JSON.parse(result.stdout);
+      assert.notEqual(reply.status, 'unavailable', JSON.stringify({ stage: reply.stage, nativeCode: reply.nativeCode, exceptionType: reply.exceptionType, hresult: reply.hresult }));
+    }
+    return result;
+  };
   const command = async (args: string[]) => {
     const result = await runCommand('/usr/bin/security', args);
     assert.equal(result.code, 0, 'temporary keychain lifecycle command failed');
@@ -27,7 +35,7 @@ test('real OS store: missing, login, read, logout, relogin; isolated target', as
       await command(['set-keychain-settings', keychain]);
       await command(['unlock-keychain', '-p', password, keychain]);
     }
-    const store = nativeStore({ service, ...(process.platform === 'darwin' ? { keychain } : {}) });
+    const store = nativeStore({ service, run, ...(process.platform === 'darwin' ? { keychain } : {}) });
     assert.equal(await store.read(), null);
     await store.write(token);
     assert.ok(await store.read() === token, 'token round trip failed');
@@ -57,7 +65,7 @@ test('real OS store: missing, login, read, logout, relogin; isolated target', as
     assert.ok(!(output + diagnostics).includes(token), 'credential escaped to CLI output');
   } finally {
     if (created) await command(['delete-keychain', keychain]);
-    else if (process.platform !== 'darwin') await nativeStore({ service }).remove();
+    else if (process.platform !== 'darwin') await nativeStore({ service, run }).remove();
     await rm(directory, { recursive: true, force: true });
   }
 });

@@ -148,8 +148,11 @@ pavegrid-mcp logout --allow-file-store
 Include `--allow-file-store` in the host's `serve` arguments too. This selects a
 separate store; it does not migrate or replace a token in the OS store. A warning
 goes to stderr on each use. On POSIX the directory is 0700 and the file is 0600,
-owned by the current user; on Windows the file has a user-only ACL. Symlinks and
-unsafe permissions are refused. The locations are:
+owned by the current user; on Windows the file has one explicit full-control
+rule for the current user's SID and inheritance is disabled. The Windows
+helper sets and verifies this ACL through Windows PowerShell's bundled modules;
+paths travel on stdin.
+Symlinks and unsafe permissions are refused. The locations are:
 
 - macOS: `~/Library/Application Support/PaveGrid/mcp/ai-token`
 - Windows: `%APPDATA%\PaveGrid\mcp\ai-token`

@@ -54,6 +54,10 @@ function run() {
 
 export const WINDOWS_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
+# A Node child of PowerShell 7 can inherit incompatible PowerShell 7 modules.
+# Restrict this helper process to the modules bundled with Windows PowerShell.
+$env:PSModulePath = [System.IO.Path]::Combine($PSHOME, 'Modules')
+$stage = 'compile'
 try {
   Add-Type -TypeDefinition @'
 using System;
@@ -71,24 +75,37 @@ public static class PaveGridCredential {
     public string TargetAlias, UserName;
   }
   [DllImport("advapi32.dll", EntryPoint="CredWriteW", CharSet=CharSet.Unicode, SetLastError=true)]
-  public static extern bool Write(ref Credential credential, uint flags);
+  private static extern bool CredWrite(ref Credential credential, uint flags);
   [DllImport("advapi32.dll", EntryPoint="CredReadW", CharSet=CharSet.Unicode, SetLastError=true)]
-  public static extern bool Read(string target, uint type, uint flags, out IntPtr credential);
+  private static extern bool CredRead(string target, uint type, uint flags, out IntPtr credential);
   [DllImport("advapi32.dll", EntryPoint="CredDeleteW", CharSet=CharSet.Unicode, SetLastError=true)]
-  public static extern bool Delete(string target, uint type, uint flags);
+  private static extern bool CredDelete(string target, uint type, uint flags);
   [DllImport("advapi32.dll", EntryPoint="CredFree")]
   public static extern void Free(IntPtr credential);
+  // Capture the native error before returning to PowerShell, whose own calls
+  // can replace the thread's last-error value during argument/function binding.
+  public static int Write(ref Credential credential, uint flags) {
+    return CredWrite(ref credential, flags) ? 0 : Marshal.GetLastWin32Error();
+  }
+  public static int Read(string target, uint type, uint flags, out IntPtr credential) {
+    return CredRead(target, type, flags, out credential) ? 0 : Marshal.GetLastWin32Error();
+  }
+  public static int Delete(string target, uint type, uint flags) {
+    return CredDelete(target, type, flags) ? 0 : Marshal.GetLastWin32Error();
+  }
 }
 '@
-  function Result($ok) {
-    if ($ok) { return 'ok' }
-    $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+  function Result([int]$code) {
+    $script:nativeCode = $code
+    if ($code -eq 0) { return 'ok' }
     if ($code -eq 1168) { return 'missing' }
     if ($code -eq 5) { return 'denied' }
     if ($code -eq 1312) { return 'locked' }
     return 'unavailable'
   }
+  $stage = 'input'
   $request = [Console]::In.ReadToEnd() | ConvertFrom-Json
+  $stage = $request.action
   $status = 'unavailable'
   $token = $null
   if ($request.action -eq 'write') {
@@ -121,27 +138,37 @@ public static class PaveGridCredential {
   } elseif ($request.action -eq 'remove') {
     $status = Result ([PaveGridCredential]::Delete($request.service, 1, 0))
   }
-  @{status=$status;token=$token} | ConvertTo-Json -Compress
-} catch { [Console]::Out.Write('{"status":"unavailable"}') }
+  @{status=$status;token=$token;nativeCode=$script:nativeCode;stage=$stage} | ConvertTo-Json -Compress
+} catch {
+  @{status='unavailable';stage=$stage;exceptionType=$_.Exception.GetType().FullName;hresult=$_.Exception.HResult} | ConvertTo-Json -Compress
+}
 `;
 
 export const WINDOWS_ACL_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
+$env:PSModulePath = [System.IO.Path]::Combine($PSHOME, 'Modules')
 try {
   $req = [Console]::In.ReadToEnd() | ConvertFrom-Json
-  $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+  $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
   if ($req.action -eq 'secure') {
-    $acl = New-Object Security.AccessControl.FileSecurity
+    $acl = [System.Security.AccessControl.FileSecurity]::new()
     $acl.SetOwner($sid)
     $acl.SetAccessRuleProtection($true, $false)
-    $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'Allow')))
+    $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($sid, 'FullControl', 'Allow'))
     Set-Acl -LiteralPath $req.path -AclObject $acl
+  } elseif ($req.action -ne 'verify') {
+    exit 1
   }
   $acl = Get-Acl -LiteralPath $req.path
-  if ($acl.Owner -ne $sid.Translate([Security.Principal.NTAccount]).Value -or -not $acl.AreAccessRulesProtected) { exit 1 }
-  foreach ($rule in $acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])) {
-    if ($rule.AccessControlType -eq 'Allow' -and $rule.IdentityReference -ne $sid) { exit 1 }
-  }
+  if ($acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value -or -not $acl.AreAccessRulesProtected) { exit 1 }
+  $rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+  if ($rules.Count -ne 1) { exit 1 }
+  $rule = $rules[0]
+  if ($rule.IdentityReference.Value -ne $sid.Value -or $rule.IsInherited -or
+      $rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or
+      $rule.FileSystemRights -ne [System.Security.AccessControl.FileSystemRights]::FullControl -or
+      $rule.InheritanceFlags -ne [System.Security.AccessControl.InheritanceFlags]::None -or
+      $rule.PropagationFlags -ne [System.Security.AccessControl.PropagationFlags]::None) { exit 1 }
   exit 0
 } catch { exit 1 }
 `;
