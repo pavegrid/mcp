@@ -57,6 +57,7 @@ $ErrorActionPreference = 'Stop'
 # A Node child of PowerShell 7 can inherit incompatible PowerShell 7 modules.
 # Restrict this helper process to the modules bundled with Windows PowerShell.
 $env:PSModulePath = [System.IO.Path]::Combine($PSHOME, 'Modules')
+$stage = 'compile'
 try {
   Add-Type -TypeDefinition @'
 using System;
@@ -95,13 +96,16 @@ public static class PaveGridCredential {
 }
 '@
   function Result([int]$code) {
+    $script:nativeCode = $code
     if ($code -eq 0) { return 'ok' }
     if ($code -eq 1168) { return 'missing' }
     if ($code -eq 5) { return 'denied' }
     if ($code -eq 1312) { return 'locked' }
     return 'unavailable'
   }
+  $stage = 'input'
   $request = [Console]::In.ReadToEnd() | ConvertFrom-Json
+  $stage = $request.action
   $status = 'unavailable'
   $token = $null
   if ($request.action -eq 'write') {
@@ -134,8 +138,10 @@ public static class PaveGridCredential {
   } elseif ($request.action -eq 'remove') {
     $status = Result ([PaveGridCredential]::Delete($request.service, 1, 0))
   }
-  @{status=$status;token=$token} | ConvertTo-Json -Compress
-} catch { [Console]::Out.Write('{"status":"unavailable"}') }
+  @{status=$status;token=$token;nativeCode=$script:nativeCode;stage=$stage} | ConvertTo-Json -Compress
+} catch {
+  @{status='unavailable';stage=$stage;exceptionType=$_.Exception.GetType().FullName;hresult=$_.Exception.HResult} | ConvertTo-Json -Compress
+}
 `;
 
 export const WINDOWS_ACL_SCRIPT = String.raw`
