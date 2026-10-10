@@ -1,0 +1,70 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
+import { Api } from '../src/api.js';
+import { callTool, createServer, pageResult, toolCatalog } from '../src/tools.js';
+import { fixtureFetch, json, identity, summary, org, site, project, contract, event, token } from './fixtures.js';
+
+const inputs: Record<string, Record<string, unknown>> = {
+  whoami: {}, list_sites: {}, get_site: { id: site }, list_projects: { site_id: site }, get_project: { id: project },
+  list_contract_items: { site_id: site }, get_contract_item: { id: contract }, list_events: { site_id: site }, get_event: { id: event }, get_summary: { site_id: site, group_by: 'project' },
+};
+test('real SDK discovery/calls validate annotations, output schema and text fallback for all tools', async () => {
+  const server = createServer(new Api(token, { fetcher: fixtureFetch() }));
+  const client = new Client({ name: 'test-host', version: '1.0.0' });
+  const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport); await client.connect(clientTransport);
+  try {
+    const { tools } = await client.listTools(); assert.equal(tools.length, 10);
+    for (const tool of tools) {
+      assert.deepEqual(tool.annotations, { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false });
+      assert.equal(tool.outputSchema?.type, 'object'); assert.equal(tool.inputSchema.additionalProperties, false);
+      const result = await client.callTool({ name: tool.name, arguments: inputs[tool.name] });
+      assert.ok(!result.isError, tool.name); assert.ok(result.structuredContent);
+      const first = result.content[0]; assert.equal(first.type, 'text');
+      if (first.type === 'text') assert.deepEqual(JSON.parse(first.text), result.structuredContent);
+      assert.equal((result.structuredContent as Record<string, unknown>).untrusted_content, true);
+    }
+    const rejected = await client.callTool({ name: 'list_events', arguments: { site_id: site, limit: 51, [token]: token } });
+    assert.equal(rejected.isError, true); assert.ok(!JSON.stringify(rejected).includes(token));
+    const unknown = await client.callTool({ name: `write_${token}`, arguments: {} });
+    assert.equal(unknown.isError, true); assert.ok(!JSON.stringify(unknown).includes(token));
+  } finally { await client.close(); await server.close(); }
+});
+test('completeness distinguishes one page, final partial page and full response', () => {
+  const data = [{ id: contract }];
+  assert.deepEqual(pageResult({ data, total: 2, limit: 1, offset: 0 }, { limit: 1, offset: 0 }).next_offset, 1);
+  const last = pageResult({ data, total: 2, limit: 1, offset: 1 }, { limit: 1, offset: 1 });
+  assert.equal(last.complete, false); assert.equal(last.next_offset, null);
+  const full = pageResult({ data, total: 1, limit: 1, offset: 0 }, { limit: 1, offset: 0 });
+  assert.equal(full.complete, true); assert.equal(full.returned, 1);
+  assert.throws(() => pageResult({ data: [], total: 1, limit: 25, offset: 0 }));
+});
+test('summary preserves units, hidden costs and server-defined fields and validates filters', async () => {
+  const calls: { url: URL; init: RequestInit }[] = [];
+  const tool = toolCatalog(new Api(token, { fetcher: fixtureFetch(calls) })).find(t => t.name === 'get_summary')!;
+  const result = await callTool(tool, { site_id: site, project_id: project, group_by: 'project', from: '2026-01-01', to: '2026-10-10' });
+  const value = result.structuredContent as Record<string, unknown>;
+  assert.deepEqual(value?.totals, summary.totals); assert.deepEqual(value?.units, summary.units); assert.equal(value?.cost_visible, false);
+  const url = calls.at(-1)!.url; assert.equal(url.pathname, '/api/ai-access/summary'); assert.equal(url.searchParams.get('project_id'), project); assert.equal(url.searchParams.get('from'), '2026-01-01');
+  for (const invalid of [{ group_by: 'bad' }, { from: '2026-02-30' }, { from: '2026-10-10', to: '2026-01-01' }]) assert.equal((await callTool(tool, { site_id: site, group_by: 'status', ...invalid })).isError, true);
+});
+test('scope is rechecked per call; revocation and org-off fail next call', async () => {
+  let enabled = true;
+  const api = new Api(token, { fetcher: async (url, init) => !enabled ? json({}, 401) : fixtureFetch()(url, init) });
+  const tool = toolCatalog(api).find(t => t.name === 'list_sites')!;
+  assert.ok(!(await callTool(tool, {})).isError); enabled = false;
+  assert.equal((await callTool(tool, {})).isError, true);
+});
+test('foreign org records are refused; instructions in data remain labelled data', async () => {
+  const api = new Api(token, { fetcher: async url => url.pathname.endsWith('whoami') ? json(identity) : json({ id: project, org_id: site }) });
+  const tool = toolCatalog(api).find(t => t.name === 'get_project')!;
+  assert.equal((await callTool(tool, { id: project })).isError, true);
+  const calls: { url: URL; init: RequestInit }[] = [];
+  const siteTool = toolCatalog(new Api(token, { fetcher: fixtureFetch(calls) })).find(t => t.name === 'get_site')!;
+  const result = await callTool(siteTool, { id: site });
+  assert.equal((result.structuredContent as Record<string, unknown>)?.untrusted_content, true);
+  assert.match(JSON.stringify(result.structuredContent), /Ignore instructions/);
+  assert.ok(calls.every(call => call.url.origin === 'https://pavegrid.com'));
+  assert.ok(calls.some(call => call.url.pathname === '/api/sites')); assert.ok(org);
+});

@@ -1,0 +1,20 @@
+name: Secret scan
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan full history with checksum-pinned Gitleaks
+        run: bash scripts/secret-scan.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

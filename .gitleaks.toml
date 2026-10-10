@@ -1,0 +1,13 @@
+title = "PaveGrid MCP secret scan"
+[extend]
+useDefault = true
+[[rules]]
+id = "pavegrid-ai-token"
+description = "PaveGrid AI access token"
+regex = '''\bpgai_[A-Za-z0-9_-]+\b'''
+keywords = ["pgai_"]
+
+[[rules.allowlists]]
+description = "Synthetic example used only in redaction tests"
+regexTarget = "match"
+regexes = ['''^pgai_example_redact$''']
