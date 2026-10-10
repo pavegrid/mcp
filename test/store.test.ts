@@ -115,6 +115,7 @@ test('Windows file storage verifies the exact user-only ACL and rejects unsafe c
   // Independent inspection and tampering of the real ACL, using stdin for paths.
   const script = String.raw`
 $ErrorActionPreference = 'Stop'
+$env:PSModulePath = [System.IO.Path]::Combine($PSHOME, 'Modules')
 $req = [Console]::In.ReadToEnd() | ConvertFrom-Json
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
 $acl = Get-Acl -LiteralPath $req.path
@@ -141,7 +142,7 @@ Set-Acl -LiteralPath $req.path -AclObject $acl
 `;
   const operate = async (action: string) => {
     const result = await runCommand('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], JSON.stringify({ path: file, action }));
-    assert.equal(result.code, 0, 'test ACL operation failed');
+    assert.equal(result.code, 0, result.stderr || 'test ACL operation failed');
     return result.stdout;
   };
   try {
