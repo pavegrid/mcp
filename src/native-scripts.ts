@@ -127,18 +127,22 @@ public static class PaveGridCredential {
 
 export const WINDOWS_ACL_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
+$stage = 'input'
 try {
   $req = [Console]::In.ReadToEnd() | ConvertFrom-Json
   $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
   if ($req.action -eq 'secure') {
+    $stage = 'construct'
     $acl = [System.Security.AccessControl.FileSecurity]::new()
     $acl.SetOwner($sid)
     $acl.SetAccessRuleProtection($true, $false)
     $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($sid, 'FullControl', 'Allow'))
+    $stage = 'set-acl'
     Set-Acl -LiteralPath $req.path -AclObject $acl
   } elseif ($req.action -ne 'verify') {
     exit 1
   }
+  $stage = 'get-acl'
   $acl = Get-Acl -LiteralPath $req.path
   if ($acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value -or -not $acl.AreAccessRulesProtected) { exit 1 }
   $rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
@@ -150,5 +154,8 @@ try {
       $rule.InheritanceFlags -ne [System.Security.AccessControl.InheritanceFlags]::None -or
       $rule.PropagationFlags -ne [System.Security.AccessControl.PropagationFlags]::None) { exit 1 }
   exit 0
-} catch { exit 1 }
+} catch {
+  [Console]::Error.WriteLine('ACL ' + $stage + ': ' + $_.Exception.Message)
+  exit 1
+}
 `;

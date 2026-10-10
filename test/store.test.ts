@@ -106,7 +106,12 @@ test('failed Windows ACL setup refuses storage before writing a token and remove
 test('Windows file storage verifies the exact user-only ACL and rejects unsafe changes', { skip: process.platform !== 'win32' }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'pavegrid ACL [literal] $ '));
   const file = join(directory, 'ai-token');
-  const store = fileStore(file);
+  const store = fileStore(file, 'win32', async (command, args, input) => {
+    const result = await runCommand(command, args, input);
+    // Only synthetic paths are sent to this helper; token contents never are.
+    if (JSON.parse(input!).action === 'secure') assert.equal(result.code, 0, result.stderr);
+    return result;
+  });
   // Independent inspection and tampering of the real ACL, using stdin for paths.
   const script = String.raw`
 $ErrorActionPreference = 'Stop'
