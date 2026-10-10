@@ -129,19 +129,26 @@ export const WINDOWS_ACL_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
 try {
   $req = [Console]::In.ReadToEnd() | ConvertFrom-Json
-  $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+  $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
   if ($req.action -eq 'secure') {
-    $acl = New-Object Security.AccessControl.FileSecurity
+    $acl = [System.Security.AccessControl.FileSecurity]::new()
     $acl.SetOwner($sid)
     $acl.SetAccessRuleProtection($true, $false)
-    $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'Allow')))
+    $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($sid, 'FullControl', 'Allow'))
     Set-Acl -LiteralPath $req.path -AclObject $acl
+  } elseif ($req.action -ne 'verify') {
+    exit 1
   }
   $acl = Get-Acl -LiteralPath $req.path
-  if ($acl.Owner -ne $sid.Translate([Security.Principal.NTAccount]).Value -or -not $acl.AreAccessRulesProtected) { exit 1 }
-  foreach ($rule in $acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])) {
-    if ($rule.AccessControlType -eq 'Allow' -and $rule.IdentityReference -ne $sid) { exit 1 }
-  }
+  if ($acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value -or -not $acl.AreAccessRulesProtected) { exit 1 }
+  $rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+  if ($rules.Count -ne 1) { exit 1 }
+  $rule = $rules[0]
+  if ($rule.IdentityReference.Value -ne $sid.Value -or $rule.IsInherited -or
+      $rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or
+      $rule.FileSystemRights -ne [System.Security.AccessControl.FileSystemRights]::FullControl -or
+      $rule.InheritanceFlags -ne [System.Security.AccessControl.InheritanceFlags]::None -or
+      $rule.PropagationFlags -ne [System.Security.AccessControl.PropagationFlags]::None) { exit 1 }
   exit 0
 } catch { exit 1 }
 `;
