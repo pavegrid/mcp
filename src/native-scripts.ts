@@ -74,18 +74,28 @@ public static class PaveGridCredential {
     public string TargetAlias, UserName;
   }
   [DllImport("advapi32.dll", EntryPoint="CredWriteW", CharSet=CharSet.Unicode, SetLastError=true)]
-  public static extern bool Write(ref Credential credential, uint flags);
+  private static extern bool CredWrite(ref Credential credential, uint flags);
   [DllImport("advapi32.dll", EntryPoint="CredReadW", CharSet=CharSet.Unicode, SetLastError=true)]
-  public static extern bool Read(string target, uint type, uint flags, out IntPtr credential);
+  private static extern bool CredRead(string target, uint type, uint flags, out IntPtr credential);
   [DllImport("advapi32.dll", EntryPoint="CredDeleteW", CharSet=CharSet.Unicode, SetLastError=true)]
-  public static extern bool Delete(string target, uint type, uint flags);
+  private static extern bool CredDelete(string target, uint type, uint flags);
   [DllImport("advapi32.dll", EntryPoint="CredFree")]
   public static extern void Free(IntPtr credential);
+  // Capture the native error before returning to PowerShell, whose own calls
+  // can replace the thread's last-error value during argument/function binding.
+  public static int Write(ref Credential credential, uint flags) {
+    return CredWrite(ref credential, flags) ? 0 : Marshal.GetLastWin32Error();
+  }
+  public static int Read(string target, uint type, uint flags, out IntPtr credential) {
+    return CredRead(target, type, flags, out credential) ? 0 : Marshal.GetLastWin32Error();
+  }
+  public static int Delete(string target, uint type, uint flags) {
+    return CredDelete(target, type, flags) ? 0 : Marshal.GetLastWin32Error();
+  }
 }
 '@
-  function Result($ok) {
-    if ($ok) { return 'ok' }
-    $code = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+  function Result([int]$code) {
+    if ($code -eq 0) { return 'ok' }
     if ($code -eq 1168) { return 'missing' }
     if ($code -eq 5) { return 'denied' }
     if ($code -eq 1312) { return 'locked' }
