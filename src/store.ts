@@ -11,10 +11,12 @@ import { MAC_SCRIPT, WINDOWS_SCRIPT, WINDOWS_ACL_SCRIPT } from './native-scripts
 export interface TokenStore { read(): Promise<string | null>; write(token: string): Promise<void>; remove(): Promise<void> }
 export type CommandResult = { code: number; stdout: string; stderr: string };
 export type Runner = (command: string, args: string[], input?: string) => Promise<CommandResult>;
+// A cold PowerShell start on Windows can take over 10 s (seen on GitHub's windows-latest runner).
+export const HELPER_TIMEOUT_MS = 30000;
 export const runCommand: Runner = (command, args, input) => new Promise((resolve, reject) => {
   const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
   let stdout = '', stderr = '', bytes = 0;
-  const timer = setTimeout(() => { child.kill(); reject(storeError('unavailable')); }, 10000);
+  const timer = setTimeout(() => { child.kill(); reject(storeError('unavailable')); }, HELPER_TIMEOUT_MS);
   for (const [stream, key] of [[child.stdout, 'stdout'], [child.stderr, 'stderr']] as const) {
     stream.on('data', (chunk: Buffer) => {
       bytes += chunk.length;
