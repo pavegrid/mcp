@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Wait up to 30 seconds (was 10) for the OS credential helper, so a slow
+  first PowerShell start on Windows no longer reports the store as unavailable.
+
 ## 0.1.0
 
 - Initial read-only PaveGrid MCP client with ten tools and full server summaries.

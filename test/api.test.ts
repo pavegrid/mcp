@@ -13,7 +13,7 @@ test('GET only, fixed origin, authorization and version header on every request'
     assert.equal(url.origin, 'https://pavegrid.com');
     assert.equal(init.method, 'GET'); assert.equal(init.redirect, 'manual');
     assert.ok(new Headers(init.headers).get('authorization') === `Bearer ${token}`);
-    assert.equal(new Headers(init.headers).get('x-pavegrid-client'), 'pavegrid-mcp/0.1.0');
+    assert.equal(new Headers(init.headers).get('x-pavegrid-client'), 'pavegrid-mcp/0.1.1');
   }
   for (const path of ['/api/users', '/api/sites/../../login', 'https://example.com/api/sites', '/api/sites?x=1', '/api/projects/invalid', '/api/org/wrong/tree']) await assert.rejects(api.request(path), ClientError);
   assert.equal(calls.length, 2);

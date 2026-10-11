@@ -21,7 +21,7 @@ test('CLI validates arguments before accessing a store; no token argv or env con
   for (const args of [['login', token], ['serve', '--token', token], ['whoami', '--stdin'], ['login', '--stdin', '--stdin'], ['bad']]) await assert.rejects(main(args, { store }), ClientError);
   let output = '';
   await main(['--help'], { store, stdout: value => { output += value; } }); assert.match(output, /read-only/);
-  output = ''; await main(['--version'], { store, stdout: value => { output += value; } }); assert.equal(output, '0.1.0\n');
+  output = ''; await main(['--version'], { store, stdout: value => { output += value; } }); assert.equal(output, '0.1.1\n');
   assert.throws(() => requireNode('20.19.0'), ClientError); requireNode('22.0.0'); requireNode('24.0.0');
 });
 test('login verifies authorization before storing; failure leaves previous token intact', async () => {

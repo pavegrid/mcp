@@ -22,7 +22,7 @@ never goes to the AI host: the local client uses it to authenticate to PaveGrid.
 Install Node.js 22 or newer. Node.js 24 LTS is recommended.
 
 ```sh
-npm install -g @pavegrid/mcp@0.1.0
+npm install -g @pavegrid/mcp@0.1.1
 pavegrid-mcp login
 pavegrid-mcp whoami
 ```
@@ -50,7 +50,7 @@ macOS and Linux:
   "mcpServers": {
     "pavegrid": {
       "command": "npx",
-      "args": ["--yes", "@pavegrid/mcp@0.1.0", "serve"]
+      "args": ["--yes", "@pavegrid/mcp@0.1.1", "serve"]
     }
   }
 }
@@ -65,7 +65,7 @@ PowerShell execution policy.
   "mcpServers": {
     "pavegrid": {
       "command": "cmd",
-      "args": ["/c", "npx", "--yes", "@pavegrid/mcp@0.1.0", "serve"]
+      "args": ["/c", "npx", "--yes", "@pavegrid/mcp@0.1.1", "serve"]
     }
   }
 }
@@ -79,11 +79,11 @@ passed as separate JSON array entries.
 ## Claude Code
 
 ```sh
-claude mcp add --transport stdio pavegrid -- npx --yes @pavegrid/mcp@0.1.0 serve
+claude mcp add --transport stdio pavegrid -- npx --yes @pavegrid/mcp@0.1.1 serve
 ```
 
 On Windows, replace the launch command after `--` with
-`cmd /c npx --yes @pavegrid/mcp@0.1.0 serve`.
+`cmd /c npx --yes @pavegrid/mcp@0.1.1 serve`.
 
 Ask your AI: “List my PaveGrid Sites.” Then use a Site id to request Projects,
 Contract Items, Events, or a full summary.
