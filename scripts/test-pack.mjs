@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const { version } = JSON.parse(await readFile(join(repo, 'package.json'), 'utf8'));
 const directory = await mkdtemp(join(tmpdir(), 'pavegrid packed bundle '));
 const keychain = join(directory, 'test.keychain-db');
 const password = randomUUID();
@@ -37,7 +38,7 @@ try {
   }
   for (const arg of ['--help', '--version']) {
     const result = run(process.execPath, [cli, arg], { cwd: unpacked, env });
-    assert.equal(result.status, 0, arg); assert.equal(result.stderr, ''); assert.match(result.stdout, arg === '--help' ? /PaveGrid read-only/ : /^0\.1\.0\n$/);
+    assert.equal(result.status, 0, arg); assert.equal(result.stderr, ''); if (arg === '--help') assert.match(result.stdout, /PaveGrid read-only/); else assert.equal(result.stdout, `${version}\n`);
   }
   const loggedOut = run(process.execPath, [cli, 'whoami'], { cwd: unpacked, env });
   assert.equal(loggedOut.status, 1); assert.equal(loggedOut.stdout, ''); assert.match(loggedOut.stderr, /^Not logged in\. Run pavegrid-mcp login first\.\n$/);
