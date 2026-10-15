@@ -45,6 +45,10 @@ export function pageResult(value: unknown, input: Query = { limit: 25, offset: 0
   if (!lastPage && returned === 0) throw invalidResponse();
   return { ...result, returned, next_offset: lastPage ? null : result.offset + returned, complete, ...notice };
 }
+/** List rows leave out the drawn outline (geometry_px, about 1.3 KB per drawn Event); get_event still returns it. */
+export function withoutOutlines<T extends { data: Array<Record<string, unknown>> }>(result: T): T {
+  return { ...result, data: result.data.map(({ geometry_px: _outline, ...rest }) => rest) };
+}
 export function toolCatalog(api: Api): Tool[] {
   const tools: Tool[] = [{ name: 'whoami', description: `Show your account, company, role and token expiry. ${dataGuide}`, input: z.object({}).strict(), output: IdentitySchema.extend(trust), run: async (_input, signal) => ({ ...await api.whoami(signal), ...notice }) }];
   const add = (name: string, description: string, input: z.ZodObject, output: z.ZodObject, execute: (input: Query, org: string, read: (path: string, query?: Query) => Promise<unknown>) => Promise<unknown>) => {
@@ -73,7 +77,7 @@ export function toolCatalog(api: Api): Tool[] {
     add(name, `Get one record with an id from ${source}. Cost fields follow your role; dates use Site time zone.`, z.object({ id }), recordOutput, async (input, _org, read) => ({ data: parse(row, await read(`/api/${resource}/${input.id}`)), ...notice }));
   }
   add('list_contract_items', `List Contract Items for a Site. wo_type is bid_item, task_order or change_order. Area fields ending in _sf are square feet. ${pageGuide}`, z.object({ site_id: id, project_id: id.optional(), status: z.string().min(1).max(200).regex(/^[a-zA-Z0-9_-]+$/).optional(), limit, offset }), pageOutput, async (input, _org, read) => pageResult(await read('/api/work-orders', input), input));
-  add('list_events', `List Events for a Site, optionally by Contract Item (work_order_id). Area fields ending in _sf are square feet. ${pageGuide}`, z.object({ site_id: id, work_order_id: id.optional(), limit, offset }), pageOutput, async (input, _org, read) => pageResult(await read('/api/activities', input), input));
+  add('list_events', `List Events for a Site, optionally by Contract Item (work_order_id). Area fields ending in _sf are square feet. ${pageGuide}`, z.object({ site_id: id, work_order_id: id.optional(), limit, offset }), pageOutput, async (input, _org, read) => withoutOutlines(pageResult(await read('/api/activities', input), input)));
   const date = z.iso.date();
   const summaryInput = z.object({ site_id: id, group_by: z.enum(['project', 'status', 'type', 'month']), project_id: id.optional(), from: date.optional(), to: date.optional() }).refine(v => !v.from || !v.to || v.from <= v.to);
   add('get_summary', 'Get full server totals for a Site, with optional Project and inclusive dates (YYYY-MM-DD). Group by project, status, type or month. Units come from units.area and units.currency. Dates follow server scope and Site time zone. Report cost_visible; never infer hidden costs. Server-defined counts and totals are passed through. Use this tool for full reports instead of adding a page of list results.', summaryInput, summaryOutput, async (input, _org, read) => ({ ...parse(summary, await read('/api/ai-access/summary', input)), ...notice }));

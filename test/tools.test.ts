@@ -40,6 +40,17 @@ test('completeness distinguishes one page, final partial page and full response'
   assert.equal(full.complete, true); assert.equal(full.returned, 1);
   assert.throws(() => pageResult({ data: [], total: 1, limit: 25, offset: 0 }));
 });
+test('list_events rows leave out the drawn outline; get_event keeps it', async () => {
+  const outline = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[0, 0], [1.5, 0], [1.5, 2.5], [0, 0]]] } };
+  const row = { id: event, org_id: org, site_id: site, manual_sf: 1200, geometry_px: outline };
+  const api = new Api(token, { fetcher: async (url, init) => url.pathname === '/api/activities' ? json({ data: [row], total: 1, limit: 25, offset: 0 })
+    : url.pathname === `/api/activities/${event}` ? json(row) : fixtureFetch()(url, init) });
+  const tools = toolCatalog(api);
+  const list = await callTool(tools.find(t => t.name === 'list_events')!, { site_id: site });
+  assert.deepEqual((list.structuredContent as { data: unknown[] }).data, [{ id: event, org_id: org, site_id: site, manual_sf: 1200 }]);
+  const detail = await callTool(tools.find(t => t.name === 'get_event')!, { id: event });
+  assert.deepEqual((detail.structuredContent as { data: Record<string, unknown> }).data.geometry_px, outline);
+});
 test('summary preserves units, hidden costs and server-defined fields and validates filters', async () => {
   const calls: { url: URL; init: RequestInit }[] = [];
   const tool = toolCatalog(new Api(token, { fetcher: fixtureFetch(calls) })).find(t => t.name === 'get_summary')!;
