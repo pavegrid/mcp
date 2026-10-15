@@ -4,6 +4,9 @@ Read your PaveGrid data from an AI assistant through a local, read-only
 [Model Context Protocol](https://modelcontextprotocol.io/) connection.
 Package: `@pavegrid/mcp`. Source: [pavegrid/mcp](https://github.com/pavegrid/mcp).
 
+Most AI apps can connect with the link https://pavegrid.com/mcp, with no install.
+This package remains available for local use.
+
 ## Before you connect
 
 Your PaveGrid admin must enable AI assistant access. Create a personal AI access
