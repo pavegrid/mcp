@@ -7,7 +7,7 @@ import { fixtureFetch, json, identity, summary, org, site, project, contract, ev
 
 const inputs: Record<string, Record<string, unknown>> = {
   whoami: {}, list_sites: {}, get_site: { id: site }, list_projects: { site_id: site }, get_project: { id: project },
-  list_contract_items: { site_id: site }, get_contract_item: { id: contract }, list_events: { site_id: site }, get_event: { id: event }, get_summary: { site_id: site, group_by: 'project' },
+  list_contract_items: { site_id: site }, get_contract_item: { id: contract }, list_events: { site_id: site }, get_event: { id: event }, get_summary: { site_id: site, group_by: 'project' }, find: { query: '26-410' },
 };
 test('real SDK discovery/calls validate annotations, output schema and text fallback for all tools', async () => {
   const server = createServer(new Api(token, { fetcher: fixtureFetch() }));
@@ -15,7 +15,7 @@ test('real SDK discovery/calls validate annotations, output schema and text fall
   const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport); await client.connect(clientTransport);
   try {
-    const { tools } = await client.listTools(); assert.equal(tools.length, 10);
+    const { tools } = await client.listTools(); assert.equal(tools.length, 11);
     for (const tool of tools) {
       assert.deepEqual(tool.annotations, { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false });
       assert.equal(tool.outputSchema?.type, 'object'); assert.equal(tool.inputSchema.additionalProperties, false);
@@ -67,6 +67,15 @@ test('summary without site_id covers the whole company; group_by site needs that
   assert.ok(!result.isError);
   const url = calls.at(-1)!.url; assert.equal(url.pathname, '/api/ai-access/summary'); assert.equal(url.searchParams.get('site_id'), null); assert.equal(url.searchParams.get('group_by'), 'site');
   for (const invalid of [{ site_id: site, group_by: 'site' }, { project_id: project, group_by: 'project' }]) assert.equal((await callTool(tool, invalid)).isError, true);
+});
+test('find searches the whole company by name or number and keeps the org check', async () => {
+  const calls: { url: URL; init: RequestInit }[] = [];
+  const tool = toolCatalog(new Api(token, { fetcher: fixtureFetch(calls) })).find(t => t.name === 'find')!;
+  const result = await callTool(tool, { query: ' 26-410 ' });
+  assert.ok(!result.isError);
+  const url = calls.at(-1)!.url; assert.equal(url.pathname, '/api/ai-access/find'); assert.equal(url.searchParams.get('query'), '26-410');
+  assert.equal((result.structuredContent as { data: { wo_number: string }[] }).data[0].wo_number, '26-410');
+  for (const invalid of [{}, { query: '' }, { query: 'x'.repeat(101) }, { query: 'a', site_id: site }]) assert.equal((await callTool(tool, invalid)).isError, true);
 });
 test('scope is rechecked per call; revocation and org-off fail next call', async () => {
   let enabled = true;
