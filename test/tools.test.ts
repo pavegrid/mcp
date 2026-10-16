@@ -76,7 +76,10 @@ test('find searches the whole company by name or number and keeps the org check'
   assert.ok(!result.isError);
   const url = calls.at(-1)!.url; assert.equal(url.pathname, '/api/ai-access/find'); assert.equal(url.searchParams.get('query'), '26-410');
   assert.equal((result.structuredContent as { data: { wo_number: string }[] }).data[0].wo_number, '26-410');
-  for (const invalid of [{}, { query: '' }, { query: 'x'.repeat(101) }, { query: 'a', site_id: site }]) assert.equal((await callTool(tool, invalid)).isError, true);
+  const narrowed = await callTool(tool, { query: 'TO-108', site_id: site });
+  assert.ok(!narrowed.isError);
+  const narrowedUrl = calls.at(-1)!.url; assert.equal(narrowedUrl.searchParams.get('query'), 'TO-108'); assert.equal(narrowedUrl.searchParams.get('site_id'), site);
+  for (const invalid of [{}, { query: '' }, { query: 'x'.repeat(101) }, { query: 'a', site_id: 'not-a-uuid' }, { query: 'a', project_id: site }]) assert.equal((await callTool(tool, invalid)).isError, true);
 });
 test('scope is rechecked per call; revocation and org-off fail next call', async () => {
   let enabled = true;
