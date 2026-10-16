@@ -45,9 +45,23 @@ export function pageResult(value: unknown, input: Query = { limit: 25, offset: 0
   if (!lastPage && returned === 0) throw invalidResponse();
   return { ...result, returned, next_offset: lastPage ? null : result.offset + returned, complete, ...notice };
 }
-/** List rows leave out the drawn outline (geometry_px, about 1.3 KB per drawn Event); get_event still returns it. */
-export function withoutOutlines<T extends { data: Array<Record<string, unknown>> }>(result: T): T {
-  return { ...result, data: result.data.map(({ geometry_px: _outline, ...rest }) => rest) };
+/**
+ * List rows are compact: they leave out the drawn outline (geometry_px, about
+ * 1.3 KB per drawn Event), bookkeeping keys no answer needs, and empty values.
+ * Ids, org_id, site_id, numbers, Types, stages, dates, areas, notes and every
+ * role-gated cost field (even when empty) stay; get_* still returns the full record.
+ */
+const LIST_DROP = new Set([
+  'geometry_px', 'geometry_pending', 'geometry_world_updated_at', 'geometry_world_geo_ref_revision', 'geometry_world_basemap_id',
+  'created_by', 'updated_by', 'updated_at', 'deleted_at', 'layer_colors', 'basemap_url', 'basemap_width_px', 'basemap_height_px',
+  'aerial_image_url', 'export_style', 'export_layout', 'notify_roles', 'default_wo_type', 'default_vendor_id', 'default_thickness',
+  'default_mix_design_id', 'default_tags', 'next_wo_seq', 'next_sketch_seq', 'wo_seq', 'seq', 'mix_design_id', 'auto_outline_events',
+  'override_defaults', 'is_repeated',
+]);
+const COST_KEYS = new Set(['total_cost', 'budget_amount', 'budget_total', 'budgeted_cost', 'variance', 'vendor_id', 'vendor_ref', 'vendor_name']);
+const isEmpty = (value: unknown) => value === null || (Array.isArray(value) && value.length === 0);
+export function compactRows<T extends { data: Array<Record<string, unknown>> }>(result: T): T {
+  return { ...result, data: result.data.map(row => Object.fromEntries(Object.entries(row).filter(([key, value]) => !LIST_DROP.has(key) && (COST_KEYS.has(key) || !isEmpty(value))))) };
 }
 export function toolCatalog(api: Api): Tool[] {
   const tools: Tool[] = [{ name: 'whoami', description: `Show your account, company, role and token expiry. ${dataGuide}`, input: z.object({}).strict(), output: IdentitySchema.extend(trust), run: async (_input, signal) => ({ ...await api.whoami(signal), ...notice }) }];
@@ -60,7 +74,7 @@ export function toolCatalog(api: Api): Tool[] {
       return execute(values, org.id, read);
     } });
   };
-  add('list_sites', `List Sites in your company. ${pageGuide}`, z.object({ limit, offset }), pageOutput, async (input, _org, read) => pageResult(await read('/api/sites', input), input));
+  add('list_sites', `List Sites in your company. ${pageGuide}`, z.object({ limit, offset }), pageOutput, async (input, _org, read) => compactRows(pageResult(await read('/api/sites', input), input)));
   add('get_site', 'Get Site configuration by id from list_sites. Includes the Site time zone.', z.object({ id }), recordOutput, async (input, org, read) => {
     // There is no Site detail route; find the full Site in the authorized list.
     for (let offset = 0, pages = 0; pages < 100; pages++) {
@@ -72,12 +86,12 @@ export function toolCatalog(api: Api): Tool[] {
     }
     throw new ClientError('site', 'Site access refused. Use an id from list_sites.');
   });
-  add('list_projects', `List Projects for a Site from list_sites. ${pageGuide}`, z.object({ site_id: id, limit, offset }), pageOutput, async (input, _org, read) => pageResult(await read('/api/projects', input), input));
+  add('list_projects', `List Projects for a Site from list_sites. ${pageGuide}`, z.object({ site_id: id, limit, offset }), pageOutput, async (input, _org, read) => compactRows(pageResult(await read('/api/projects', input), input)));
   for (const [name, resource, source] of [['get_project', 'projects', 'list_projects'], ['get_contract_item', 'work-orders', 'list_contract_items'], ['get_event', 'activities', 'list_events']]) {
     add(name, `Get one record with an id from ${source}. Cost fields follow your role; dates use Site time zone.`, z.object({ id }), recordOutput, async (input, _org, read) => ({ data: parse(row, await read(`/api/${resource}/${input.id}`)), ...notice }));
   }
-  add('list_contract_items', `List Contract Items for a Site. wo_type is bid_item, task_order or change_order. Area fields ending in _sf are square feet. ${pageGuide}`, z.object({ site_id: id, project_id: id.optional(), status: z.string().min(1).max(200).regex(/^[a-zA-Z0-9_-]+$/).optional(), limit, offset }), pageOutput, async (input, _org, read) => pageResult(await read('/api/work-orders', input), input));
-  add('list_events', `List Events for a Site, optionally by Contract Item (work_order_id). Area fields ending in _sf are square feet. ${pageGuide}`, z.object({ site_id: id, work_order_id: id.optional(), limit, offset }), pageOutput, async (input, _org, read) => withoutOutlines(pageResult(await read('/api/activities', input), input)));
+  add('list_contract_items', `List Contract Items for a Site. wo_type is bid_item, task_order or change_order. Area fields ending in _sf are square feet. ${pageGuide}`, z.object({ site_id: id, project_id: id.optional(), status: z.string().min(1).max(200).regex(/^[a-zA-Z0-9_-]+$/).optional(), limit, offset }), pageOutput, async (input, _org, read) => compactRows(pageResult(await read('/api/work-orders', input), input)));
+  add('list_events', `List Events for a Site, optionally by Contract Item (work_order_id). Area fields ending in _sf are square feet. ${pageGuide}`, z.object({ site_id: id, work_order_id: id.optional(), limit, offset }), pageOutput, async (input, _org, read) => compactRows(pageResult(await read('/api/activities', input), input)));
   const date = z.iso.date();
   const summaryInput = z.object({ site_id: id, group_by: z.enum(['project', 'status', 'type', 'month']), project_id: id.optional(), from: date.optional(), to: date.optional() }).refine(v => !v.from || !v.to || v.from <= v.to);
   add('get_summary', 'Get full server totals for a Site, with optional Project and inclusive dates (YYYY-MM-DD). Group by project, status, type or month. Units come from units.area and units.currency. Dates follow server scope and Site time zone. Report cost_visible; never infer hidden costs. Server-defined counts and totals are passed through. Use this tool for full reports instead of adding a page of list results.', summaryInput, summaryOutput, async (input, _org, read) => ({ ...parse(summary, await read('/api/ai-access/summary', input)), ...notice }));
