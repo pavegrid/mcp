@@ -60,6 +60,14 @@ test('summary preserves units, hidden costs and server-defined fields and valida
   const url = calls.at(-1)!.url; assert.equal(url.pathname, '/api/ai-access/summary'); assert.equal(url.searchParams.get('project_id'), project); assert.equal(url.searchParams.get('from'), '2026-01-01');
   for (const invalid of [{ group_by: 'bad' }, { from: '2026-02-30' }, { from: '2026-10-10', to: '2026-01-01' }]) assert.equal((await callTool(tool, { site_id: site, group_by: 'status', ...invalid })).isError, true);
 });
+test('summary without site_id covers the whole company; group_by site needs that scope; project_id needs site_id', async () => {
+  const calls: { url: URL; init: RequestInit }[] = [];
+  const tool = toolCatalog(new Api(token, { fetcher: fixtureFetch(calls) })).find(t => t.name === 'get_summary')!;
+  const result = await callTool(tool, { group_by: 'site', from: '2026-01-01' });
+  assert.ok(!result.isError);
+  const url = calls.at(-1)!.url; assert.equal(url.pathname, '/api/ai-access/summary'); assert.equal(url.searchParams.get('site_id'), null); assert.equal(url.searchParams.get('group_by'), 'site');
+  for (const invalid of [{ site_id: site, group_by: 'site' }, { project_id: project, group_by: 'project' }]) assert.equal((await callTool(tool, invalid)).isError, true);
+});
 test('scope is rechecked per call; revocation and org-off fail next call', async () => {
   let enabled = true;
   const api = new Api(token, { fetcher: async (url, init) => !enabled ? json({}, 401) : fixtureFetch()(url, init) });

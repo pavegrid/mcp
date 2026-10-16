@@ -100,7 +100,7 @@ Contract Items, Events, or a full summary.
 | `list_projects`, `get_project` | Projects for a Site and full Project records |
 | `list_contract_items`, `get_contract_item` | Contract Items and full records |
 | `list_events`, `get_event` | Events and full records |
-| `get_summary` | Full server counts and totals, grouped by Project, status, type or month |
+| `get_summary` | Full server counts and totals for a Site or the whole company, grouped by Project, status, type, month or Site |
 
 List inputs use `limit` (1–50, default 25) and `offset` (default 0). Results
 include `data`, `total`, `limit`, `offset`, `returned`, `next_offset`, and
@@ -110,8 +110,11 @@ offset still contains only part of the list. Do not calculate full totals from
 one page. Use `get_summary` for reports. Lists can change between requests;
 they are not a snapshot.
 
-`get_summary` requires `site_id` and `group_by` (`project`, `status`, `type`, or
-`month`). It accepts `project_id`, `from`, and `to`; dates are inclusive
+`get_summary` requires `group_by` (`project`, `status`, `type`, `month`, or
+`site`). With `site_id` it covers that Site; without it, it covers every Site of
+your company you can see, and `group_by` `site` gives one group per Site. A
+company total shows costs only when every Site's costs are visible to you.
+`project_id` needs `site_id`. It accepts `from` and `to`; dates are inclusive
 `YYYY-MM-DD` values interpreted by the server for the Site time zone. Use
 `scope`, `generated_at`, and `units` to label reports. The server defines the
 fields inside `counts` and `totals`; the client preserves them. State
