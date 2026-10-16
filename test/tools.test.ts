@@ -67,6 +67,7 @@ test('summary without site_id covers the whole company; group_by site needs that
   const result = await callTool(tool, { group_by: 'site', from: '2026-01-01' });
   assert.ok(!result.isError);
   const url = calls.at(-1)!.url; assert.equal(url.pathname, '/api/ai-access/summary'); assert.equal(url.searchParams.get('site_id'), null); assert.equal(url.searchParams.get('group_by'), 'site');
+  assert.deepEqual((result.structuredContent as { groups: { highlights?: unknown }[] }).groups[0].highlights, summary.groups[0].highlights); assert.match(tool.description ?? '', /each with that Site's highlights/);
   for (const invalid of [{ site_id: site, group_by: 'site' }, { project_id: project, group_by: 'project' }]) assert.equal((await callTool(tool, invalid)).isError, true);
 });
 test('find searches the whole company by name or number and keeps the org check', async () => {

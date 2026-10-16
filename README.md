@@ -113,7 +113,8 @@ they are not a snapshot.
 
 `get_summary` requires `group_by` (`project`, `status`, `type`, `month`, or
 `site`). With `site_id` it covers that Site; without it, it covers every Site of
-your company you can see, and `group_by` `site` gives one group per Site. A
+your company you can see, and `group_by` `site` gives one group per Site, each with that Site's own
+`highlights`. A
 company total shows costs only when every Site's costs are visible to you.
 `project_id` needs `site_id`. It accepts `from` and `to`; dates are inclusive
 `YYYY-MM-DD` values interpreted by the server for the Site time zone. Use
