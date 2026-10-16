@@ -70,6 +70,14 @@ test('summary without site_id covers the whole company; group_by site needs that
   assert.deepEqual((result.structuredContent as { groups: { highlights?: unknown }[] }).groups[0].highlights, summary.groups[0].highlights); assert.match(tool.description ?? '', /each with that Site's highlights/);
   for (const invalid of [{ site_id: site, group_by: 'site' }, { project_id: project, group_by: 'project' }]) assert.equal((await callTool(tool, invalid)).isError, true);
 });
+test('summary group_by contract_item needs site_id and passes it through', async () => {
+  const calls: { url: URL; init: RequestInit }[] = [];
+  const tool = toolCatalog(new Api(token, { fetcher: fixtureFetch(calls) })).find(t => t.name === 'get_summary')!;
+  assert.ok(!(await callTool(tool, { site_id: site, group_by: 'contract_item' })).isError);
+  const url = calls.at(-1)!.url; assert.equal(url.searchParams.get('site_id'), site); assert.equal(url.searchParams.get('group_by'), 'contract_item');
+  assert.match(tool.description ?? '', /rank Contract Items by Events/);
+  assert.equal((await callTool(tool, { group_by: 'contract_item' })).isError, true);
+});
 test('find searches the whole company by name or number and keeps the org check', async () => {
   const calls: { url: URL; init: RequestInit }[] = [];
   const tool = toolCatalog(new Api(token, { fetcher: fixtureFetch(calls) })).find(t => t.name === 'find')!;

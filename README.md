@@ -101,7 +101,7 @@ Contract Items, Events, or a full summary.
 | `list_contract_items`, `get_contract_item` | Contract Items and full records |
 | `list_events`, `get_event` | Events and full records |
 | `find` | Sites and Projects by name, Contract Items by number, across your company |
-| `get_summary` | Full server counts and totals for a Site or the whole company, grouped by Project, status, type, month or Site |
+| `get_summary` | Full server counts and totals for a Site or the whole company, grouped by Project, status, type, month, Contract Item or Site |
 
 List inputs use `limit` (1–50, default 25) and `offset` (default 0). Results
 include `data`, `total`, `limit`, `offset`, `returned`, `next_offset`, and
@@ -111,8 +111,10 @@ offset still contains only part of the list. Do not calculate full totals from
 one page. Use `get_summary` for reports. Lists can change between requests;
 they are not a snapshot.
 
-`get_summary` requires `group_by` (`project`, `status`, `type`, `month`, or
-`site`). With `site_id` it covers that Site; without it, it covers every Site of
+`get_summary` requires `group_by` (`project`, `status`, `type`, `month`,
+`contract_item`, or `site`). With `site_id` it covers that Site, and
+`group_by` `contract_item` gives one group per Contract Item with its Event
+count and area; without it, it covers every Site of
 your company you can see, and `group_by` `site` gives one group per Site, each with that Site's own
 `highlights`. A
 company total shows costs only when every Site's costs are visible to you.
