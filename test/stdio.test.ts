@@ -14,7 +14,7 @@ test('stdio discovery and tool calls use a real child process and legacy MCP cli
   transport.stderr?.on('data', (chunk: Buffer) => { diagnostics += chunk.toString(); });
   await client.connect(transport);
   try {
-    const { tools } = await client.listTools(); assert.equal(tools.length, 10);
+    const { tools } = await client.listTools(); assert.equal(tools.length, 11);
     const result = await client.callTool({ name: 'whoami', arguments: {} });
     assert.ok(!result.isError); assert.ok(result.structuredContent);
     assert.equal(diagnostics, '');

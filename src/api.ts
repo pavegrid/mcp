@@ -10,7 +10,7 @@ export const IdentitySchema = z.object({
 export type Identity = z.infer<typeof IdentitySchema>;
 export type Fetcher = (url: URL, init: RequestInit) => Promise<Response>;
 export type Query = Record<string, string | number | undefined>;
-const routes = /^\/api\/(ai-access\/(whoami|summary)|sites|org\/[a-f0-9-]{36}\/tree|projects(?:\/[a-f0-9-]{36})?|work-orders(?:\/[a-f0-9-]{36})?|activities(?:\/[a-f0-9-]{36})?)$/i;
+const routes = /^\/api\/(ai-access\/(whoami|summary|find)|sites|org\/[a-f0-9-]{36}\/tree|projects(?:\/[a-f0-9-]{36})?|work-orders(?:\/[a-f0-9-]{36})?|activities(?:\/[a-f0-9-]{36})?)$/i;
 const origins = new Set(['https://pavegrid.com', 'https://www.pavegrid.io']);
 export function apiOrigin(origin = process.env.PAVEGRID_MCP_INTERNAL_BASE_URL ?? 'https://pavegrid.com'): string {
   if (!origins.has(origin)) throw new ClientError('bad_origin', 'PaveGrid origin is not allowed.');

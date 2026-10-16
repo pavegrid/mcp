@@ -100,6 +100,7 @@ Contract Items, Events, or a full summary.
 | `list_projects`, `get_project` | Projects for a Site and full Project records |
 | `list_contract_items`, `get_contract_item` | Contract Items and full records |
 | `list_events`, `get_event` | Events and full records |
+| `find` | Sites and Projects by name, Contract Items by number, across your company |
 | `get_summary` | Full server counts and totals for a Site or the whole company, grouped by Project, status, type, month or Site |
 
 List inputs use `limit` (1–50, default 25) and `offset` (default 0). Results
@@ -195,7 +196,7 @@ OS credential entries use service `pavegrid-mcp:production` and account
 
 ## Compatibility evidence
 
-The automated suite checks SDK discovery and calls for all ten tools, plus
+The automated suite checks SDK discovery and calls for all eleven tools, plus
 stdio protocol output, error paths, packing, and credential operations.
 Live PaveGrid account acceptance and actual Claude Desktop / Claude Code host
 acceptance are separate release requirements. Windows Desktop behavior must be
