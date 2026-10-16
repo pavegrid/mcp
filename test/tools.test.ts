@@ -57,6 +57,7 @@ test('summary preserves units, hidden costs and server-defined fields and valida
   const result = await callTool(tool, { site_id: site, project_id: project, group_by: 'project', from: '2026-01-01', to: '2026-10-10' });
   const value = result.structuredContent as Record<string, unknown>;
   assert.deepEqual(value?.totals, summary.totals); assert.deepEqual(value?.units, summary.units); assert.equal(value?.cost_visible, false);
+  assert.deepEqual(value?.highlights, summary.highlights); assert.match(tool.description ?? '', /highlights/);
   const url = calls.at(-1)!.url; assert.equal(url.pathname, '/api/ai-access/summary'); assert.equal(url.searchParams.get('project_id'), project); assert.equal(url.searchParams.get('from'), '2026-01-01');
   for (const invalid of [{ group_by: 'bad' }, { from: '2026-02-30' }, { from: '2026-10-10', to: '2026-01-01' }]) assert.equal((await callTool(tool, { site_id: site, group_by: 'status', ...invalid })).isError, true);
 });

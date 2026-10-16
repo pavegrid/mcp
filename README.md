@@ -118,7 +118,10 @@ company total shows costs only when every Site's costs are visible to you.
 `project_id` needs `site_id`. It accepts `from` and `to`; dates are inclusive
 `YYYY-MM-DD` values interpreted by the server for the Site time zone. Use
 `scope`, `generated_at`, and `units` to label reports. The server defines the
-fields inside `counts` and `totals`; the client preserves them. State
+fields inside `counts` and `totals`; the client preserves them. `highlights`
+gives the first and last dates, the number of Contract Items without Events,
+the largest single Event, and (only when costs are visible) how many Contract
+Items are over budget and by how much. State
 `cost_visible` and never infer a hidden cost from a missing or null value.
 Record area fields ending in `_sf` use square feet. Summary area and currency
 units come from `units.area` and `units.currency`.
