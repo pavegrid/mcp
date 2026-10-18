@@ -31,7 +31,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test scripts",
-    "test": "tsx --test test/api.test.ts test/main.test.ts test/store.test.ts test/tools.test.ts test/stdio.test.ts",
+    "test": "tsx --test test/api.test.ts test/links.test.ts test/main.test.ts test/store.test.ts test/tools.test.ts test/stdio.test.ts",
     "test:store": "tsx --test test/native.real.ts",
     "build": "node scripts/build.mjs",
     "test:pack": "node scripts/test-pack.mjs"

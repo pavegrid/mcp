@@ -102,6 +102,12 @@ Contract Items, Events, or a full summary.
 | `list_events`, `get_event` | Events and full records |
 | `find` | Sites and Projects by name, Contract Items by number, across your company |
 | `get_summary` | Full server counts and totals for a Site or the whole company, grouped by Project, status, type, month, Contract Item or Site |
+| `search`, `fetch` | The same records in the ChatGPT deep research shape: `search` returns ids, titles, links and a short text; `fetch` returns one record by a `search` id |
+
+Every Site, Project, Contract Item and Event record, `find` match and
+`get_summary` group (and `highlights.largest_event`) carries `url`, its exact
+PaveGrid page. Contract Items also carry `upload_url`, the Imports upload page
+for their Site. Links are built only from ids the record already carries.
 
 List inputs use `limit` (1–50, default 25) and `offset` (default 0). Results
 include `data`, `total`, `limit`, `offset`, `returned`, `next_offset`, and
@@ -202,7 +208,7 @@ OS credential entries use service `pavegrid-mcp:production` and account
 
 ## Compatibility evidence
 
-The automated suite checks SDK discovery and calls for all eleven tools, plus
+The automated suite checks SDK discovery and calls for all thirteen tools, plus
 stdio protocol output, error paths, packing, and credential operations.
 Live PaveGrid account acceptance and actual Claude Desktop / Claude Code host
 acceptance are separate release requirements. Windows Desktop behavior must be

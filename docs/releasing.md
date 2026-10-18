@@ -27,7 +27,7 @@ and [provenance](https://docs.npmjs.com/generating-provenance-statements/).
 
 - All six CI jobs must be green, including real native store operations and
   running the packed bundle outside the repo. Secret scanning must pass.
-- Install the packed tarball in clean environments and exercise all ten tools
+- Install the packed tarball in clean environments and exercise all thirteen tools
   with a disposable PaveGrid account. Compare full summary totals with all
   pages of the corresponding lists. Check cost restrictions, units, dates,
   revocation and company AI access off on the next call.
