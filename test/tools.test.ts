@@ -150,8 +150,8 @@ test('search and fetch refuse other companies, add no cost and reject malformed 
   for (const result of [await callTool(search, { query: 'yard' }), await callTool(fetchTool, { id: `contract_item:${contract}` })]) {
     assert.deepEqual(result, { isError: true, content: [{ type: 'text', text: 'This record belongs to another company. Access refused.' }] }); assert.ok(!JSON.stringify(result).includes('Secret'));
   }
-  const costless = toolCatalog(records({ query: 'bi', complete: true, data: [{ type: 'contract_item', id: contract, org_id: org, site_id: site, wo_number: 'BI-101', total_cost: 99 }] }, { id: contract, org_id: org, site_id: site, wo_number: 'BI-101' }));
-  assert.doesNotMatch(JSON.stringify(await callTool(costless.find(t => t.name === 'search')!, { query: 'bi' })), /total_cost|99/);
+  const costless = toolCatalog(records({ query: 'bi', complete: true, data: [{ type: 'contract_item', id: contract, org_id: org, site_id: site, wo_number: 'BI-101', total_cost: 987654.32 }] }, { id: contract, org_id: org, site_id: site, wo_number: 'BI-101' }));
+  assert.doesNotMatch(JSON.stringify(await callTool(costless.find(t => t.name === 'search')!, { query: 'bi' })), /total_cost|987654/);
   assert.doesNotMatch(JSON.stringify(await callTool(costless.find(t => t.name === 'fetch')!, { id: `contract_item:${contract}` })), /total_cost|budget|variance|vendor/);
   for (const id of [contract, `repair:${contract}`, `site:not-a-uuid`, `site:${site}/x`]) assert.equal((await callTool(fetchTool, { id })).isError, true, id);
   assert.equal((await callTool(search, { query: 'a', site_id: site })).isError, true);
