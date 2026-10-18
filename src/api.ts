@@ -44,7 +44,7 @@ async function readJson(response: Response, token: string): Promise<unknown> {
 }
 export class Api {
   private readonly token: string;
-  private readonly origin: string;
+  readonly origin: string;
   constructor(token: string, private readonly options: {
     fetcher?: Fetcher; origin?: string; timeoutMs?: number;
     sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
