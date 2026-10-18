@@ -1,7 +1,7 @@
 # Client design
 
 The caller runs `pavegrid-mcp login`, then launches `pavegrid-mcp serve` from an
-MCP host. The host sees ten stable read tools and never receives the token.
+MCP host. The host sees thirteen stable read tools and never receives the token.
 
 ## Chosen structure
 
@@ -16,6 +16,8 @@ MCP host. The host sees ten stable read tools and never receives the token.
   retries, redirect refusal, body limit and token redaction.
 - `tools.ts` owns input and output schemas, scope checks, page completeness,
   summary pass-through and the untrusted-text envelope.
+- `links.ts` adds each record's `url` (and a Contract Item's `upload_url`) on the
+  validated API origin, built only from ids the record already carries.
 - esbuild produces one CommonJS executable; dependency notices are embedded.
 
 ## Alternatives considered
