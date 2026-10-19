@@ -90,7 +90,7 @@ export function linkSummary<T extends Row>(origin: string, summary: T): T {
     groups: groups.map(group => ({
       ...group,
       url: `${base(origin)}${groupPath(scope.group_by, scope, group)}`,
-      ...(group.highlights === undefined ? {} : { highlights: linkHighlights(origin, { ...scope, site_id: text(group.site_id) ?? scope.site_id }, group.highlights) }),
+      ...(group.highlights === undefined ? {} : { highlights: linkHighlights(origin, { ...scope, site_id: scope.group_by === 'site' ? text(group.key) : text(group.site_id) ?? scope.site_id }, group.highlights) }),
     })),
   };
   if (summary.highlights !== undefined) linked.highlights = linkHighlights(origin, scope, summary.highlights);

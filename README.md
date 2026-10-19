@@ -102,7 +102,7 @@ Contract Items, Events, or a full summary.
 | `list_events`, `get_event` | Events and full records |
 | `find` | Sites and Projects by name, Contract Items by number, across your company |
 | `get_summary` | Full server counts and totals for a Site or the whole company, grouped by Project, status, type, month, Contract Item or Site |
-| `search`, `fetch` | The same records in the ChatGPT deep research shape: `search` returns ids, titles, links and a short text; `fetch` returns one record by a `search` id |
+| `search`, `fetch` | The same records in the ChatGPT deep research shape: `search` returns ids, titles, links and a short text; `fetch` returns one Site, Project or Contract Item by a `search` id |
 
 Every Site, Project, Contract Item and Event record, `find` match and
 `get_summary` group (and `highlights.largest_event`) carries `url`, its exact
@@ -128,12 +128,21 @@ company total shows costs only when every Site's costs are visible to you.
 `YYYY-MM-DD` values interpreted by the server for the Site time zone. Use
 `scope`, `generated_at`, and `units` to label reports. The server defines the
 fields inside `counts` and `totals`; the client preserves them. `highlights`
-gives the first and last dates, the number of Contract Items without Events,
-the largest single Event, and (only when costs are visible) how many Contract
-Items are over budget and by how much. State
+(top level and on each group, typed in the output schema) gives `first_date`
+and `last_date` (Contract Item dates, not Event dates),
+`contract_items_without_events`, `largest_event`, and (only when costs are
+visible) `over_budget`: how many Contract Items are over budget and by how
+much. State
 `cost_visible` and never infer a hidden cost from a missing or null value.
 Record area fields ending in `_sf` use square feet. Summary area and currency
 units come from `units.area` and `units.currency`.
+
+The default stage order (`status`) is initiation, prewalk, planning,
+paving_day, post_paving, closed: not started is initiation, prewalk and
+planning; in progress is paving_day and post_paving; done is closed. The
+client does not return placement temperature, inspector sign-off or crew
+hours. A `find` or `search` result with `complete` true and no matches means
+you can see no such record.
 
 All tools declare read-only, non-destructive, idempotent behavior and a closed
 set of PaveGrid endpoints. All provide an output schema, structured results,

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
+import { z } from 'zod';
 import { Api } from '../src/api.js';
 import { callTool, createServer, pageResult, toolCatalog } from '../src/tools.js';
 import { fixtureFetch, json, identity, summary, org, site, project, contract, event, token } from './fixtures.js';
@@ -91,6 +92,56 @@ test('find searches the whole company by name or number and keeps the org check'
   const narrowedUrl = calls.at(-1)!.url; assert.equal(narrowedUrl.searchParams.get('query'), 'TO-108'); assert.equal(narrowedUrl.searchParams.get('site_id'), site);
   for (const invalid of [{}, { query: '' }, { query: 'x'.repeat(101) }, { query: 'a', site_id: 'not-a-uuid' }, { query: 'a', project_id: site }]) assert.equal((await callTool(tool, invalid)).isError, true);
 });
+test('tools that show or total stages say what the default stage order and the three stage groups mean', () => {
+  const tools = toolCatalog(new Api(token, { fetcher: fixtureFetch() }));
+  for (const name of ['list_contract_items', 'get_contract_item', 'find', 'get_summary']) {
+    const { description } = tools.find(t => t.name === name)!;
+    assert.match(description, /initiation, prewalk, planning, paving_day, post_paving, closed/, name);
+    assert.match(description, /not started = initiation, prewalk and planning; in progress = paving_day and post_paving; done = closed/, name);
+  }
+  for (const name of ['get_summary', 'find', 'list_events']) {
+    const { description } = tools.find(t => t.name === name)!;
+    assert.match(description, /placement temperature, inspector sign-off or crew hours: answer "not recorded" at once/, name);
+  }
+  for (const name of ['find', 'search']) {
+    assert.match(tools.find(t => t.name === name)!.description, /complete is true and there are no matches, you can see no such record: ask the user and do not search other records/, name);
+  }
+  const { description } = tools.find(t => t.name === 'get_summary')!;
+  for (const field of ['highlights.first_date', 'highlights.last_date', 'highlights.contract_items_without_events', 'highlights.largest_event', 'highlights.over_budget']) assert.ok(description.includes(field), field);
+  assert.match(description, /For "Which was the largest Event\?" read highlights.largest_event; do not page list_events/);
+  assert.match(description, /last_date is the latest Contract Item date, not an Event date/);
+});
+test('get_summary types highlights at the top level and on each group; a highlight missing a typed field is refused', async () => {
+  const tool = toolCatalog(new Api(token, { fetcher: fixtureFetch() })).find(t => t.name === 'get_summary')!;
+  type Level = { properties: Record<string, { anyOf?: { properties?: Record<string, unknown> }[] }>; required: string[] };
+  const schema = z.toJSONSchema(tool.output, { target: 'draft-7' }) as unknown as { properties: { highlights: Level; groups: { items: { properties: { highlights: Level } } } } };
+  for (const level of [schema.properties.highlights, schema.properties.groups.items.properties.highlights]) {
+    assert.deepEqual(Object.keys(level.properties).sort(), ['contract_items_without_events', 'first_date', 'largest_event', 'last_date', 'over_budget']);
+    assert.deepEqual(level.required, ['first_date', 'last_date', 'contract_items_without_events', 'largest_event']);
+    const largest = level.properties.largest_event.anyOf?.find(branch => branch.properties)?.properties ?? {};
+    for (const key of ['id', 'wo_number', 'location_label', 'area_sq_ft', 'date', 'url']) assert.ok(key in largest, key);
+  }
+  const overBudget = { ...summary.highlights, over_budget: { contract_items: 2, amount: 1250.5 } };
+  const kept = await callTool(toolCatalog(new Api(token, { fetcher: async (url, init) => url.pathname.endsWith('/summary') ? json({ ...summary, highlights: overBudget }) : fixtureFetch()(url, init) })).find(t => t.name === 'get_summary')!, { site_id: site, group_by: 'status' });
+  assert.deepEqual((kept.structuredContent as { highlights: { over_budget: unknown } }).highlights.over_budget, overBudget.over_budget);
+  const partial = Object.fromEntries(Object.entries(summary.highlights).filter(([key]) => key !== 'contract_items_without_events'));
+  const refused = await callTool(toolCatalog(new Api(token, { fetcher: async (url, init) => url.pathname.endsWith('/summary') ? json({ ...summary, highlights: partial }) : fixtureFetch()(url, init) })).find(t => t.name === 'get_summary')!, { site_id: site, group_by: 'status' });
+  assert.deepEqual(refused, { isError: true, content: [{ type: 'text', text: 'PaveGrid returned an unexpected record response.' }] });
+  const bare = Object.fromEntries(Object.entries(summary).filter(([key]) => key !== 'highlights'));
+  const plain = await callTool(toolCatalog(new Api(token, { fetcher: async (url, init) => url.pathname.endsWith('/summary') ? json({ ...bare, groups: [] }) : fixtureFetch()(url, init) })).find(t => t.name === 'get_summary')!, { site_id: site, group_by: 'status' });
+  assert.ok(!plain.isError);
+});
+test('company summary by site links each group\'s largest Event on that group\'s Site', async () => {
+  const other = '88888888-8888-4888-8888-888888888888';
+  const largest = { id: event, work_order_id: contract, wo_number: '26-410', location_label: null, area_sq_ft: 9, date: null };
+  const highlights = { first_date: null, last_date: null, contract_items_without_events: 0, largest_event: largest };
+  const bySite = { ...summary, scope: { org_id: org, site_id: null, group_by: 'site' }, groups: [{ key: other, label: 'Yard', counts: {}, totals: {}, highlights }], highlights: { ...highlights, largest_event: null } };
+  const tool = toolCatalog(new Api(token, { fetcher: async (url, init) => url.pathname.endsWith('/summary') ? json(bySite) : fixtureFetch()(url, init) })).find(t => t.name === 'get_summary')!;
+  const result = await callTool(tool, { group_by: 'site' });
+  const group = (result.structuredContent as { groups: { url: string; highlights: { largest_event: { url: string } } }[] }).groups[0];
+  assert.equal(group.url, `https://pavegrid.com/map?site=${other}`);
+  assert.equal(group.highlights.largest_event.url, `https://pavegrid.com/map?site=${other}&job=${contract}&focus=1&activity=${event}`);
+});
 test('scope is rechecked per call; revocation and org-off fail next call', async () => {
   let enabled = true;
   const api = new Api(token, { fetcher: async (url, init) => !enabled ? json({}, 401) : fixtureFetch()(url, init) });
@@ -128,12 +179,12 @@ for (const origin of ['https://www.pavegrid.io', 'https://pavegrid.com']) {
     const search = await callTool(tools.find(t => t.name === 'search')!, { query: ' 26-410 ' });
     assert.equal(calls.at(-1)!.url.pathname, '/api/ai-access/find'); assert.equal(calls.at(-1)!.url.search, '?query=26-410');
     assert.deepEqual((search.structuredContent as { results: unknown[] }).results, [{ id: `contract_item:${contract}`, title: '26-410 (Bid Item)', url: `${origin}/contract-items/${contract}`, text: 'Contract Item 26-410, Bid Item, stage planning, in Site Example Site.' }]);
+    assert.equal((search.structuredContent as { complete: boolean }).complete, true);
     const fetchTool = tools.find(t => t.name === 'fetch')!;
     const cases: [string, string, string, Record<string, unknown>][] = [
       [`site:${site}`, 'Example Site', `${origin}/map?site=${site}`, { type: 'site', org_id: org, site_id: site }],
       [`project:${project}`, 'Example project', `${origin}/map?site=${site}&project=${project}`, { type: 'project', org_id: org, site_id: site, project_id: project }],
       [`contract_item:${contract}`, 'Contract Item (Bid Item)', `${origin}/contract-items/${contract}`, { type: 'contract_item', org_id: org, site_id: site, upload_url: `${origin}/import-center/new?site=${site}` }],
-      [`event:${event}`, 'Event', `${origin}/map?site=${site}&event=${event}`, { type: 'event', org_id: org, site_id: site }],
     ];
     for (const [id, title, url, metadata] of cases) {
       const result = await callTool(fetchTool, { id });
@@ -153,6 +204,6 @@ test('search and fetch refuse other companies, add no cost and reject malformed 
   const costless = toolCatalog(records({ query: 'bi', complete: true, data: [{ type: 'contract_item', id: contract, org_id: org, site_id: site, wo_number: 'BI-101', total_cost: 987654.32 }] }, { id: contract, org_id: org, site_id: site, wo_number: 'BI-101' }));
   assert.doesNotMatch(JSON.stringify(await callTool(costless.find(t => t.name === 'search')!, { query: 'bi' })), /total_cost|987654/);
   assert.doesNotMatch(JSON.stringify(await callTool(costless.find(t => t.name === 'fetch')!, { id: `contract_item:${contract}` })), /total_cost|budget|variance|vendor/);
-  for (const id of [contract, `repair:${contract}`, `site:not-a-uuid`, `site:${site}/x`]) assert.equal((await callTool(fetchTool, { id })).isError, true, id);
+  for (const id of [contract, `event:${event}`, `repair:${contract}`, `site:not-a-uuid`, `site:${site}/x`]) assert.equal((await callTool(fetchTool, { id })).isError, true, id);
   assert.equal((await callTool(search, { query: 'a', site_id: site })).isError, true);
 });
